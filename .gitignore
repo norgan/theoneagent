@@ -1,0 +1,5 @@
+# Ignore Python venv and large data
+.venv/
+faiss_store/
+data/
+.env

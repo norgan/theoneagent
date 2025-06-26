@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+openai
+requests
+msal
+langchain
+faiss-gpu-cu12        # GPU-enabled FAISS for CUDA-12
+python-docx
+pdfminer.six
