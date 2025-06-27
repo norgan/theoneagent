@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ikirōne Agent</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-box">
+            <div class="message agent-message">
+                <p>Ikirōne is online. What is on your mind?</p>
+            </div>
+        </div>
+        <form id="chat-form">
+            <input type="text" id="message-input" placeholder="Converse with Ikirōne..." autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+        <div id="file-upload-area">
+             <input type="file" id="file-input" multiple>
+            <label for="file-input">Upload Files (stub)</label>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,215 +1,135 @@
 #!/usr/bin/env python3
 """
-agent.py — Ikirōne RAG Agent (fixed FAISS save/load signature)
+agent.py — Ikirōne Agent (Evolved with Tools)
 """
 
 import os
 import requests
-import openai
 import msal
-import faiss
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Type
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
-from langchain.schema import Document
-from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# LangChain Agent Imports
+from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain_core.messages import BaseMessage, HumanMessage
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.tools import tool
+from langchain_openai import ChatOpenAI
 
-# ─── CONFIG ───────────────────────────────────────────────────────
-
-BASE_DIR   = Path(__file__).parent
-DATA_DIR   = BASE_DIR / "data"
-STORE_DIR  = BASE_DIR / "faiss_store"
-DATA_DIR.mkdir(exist_ok=True)
-STORE_DIR.mkdir(exist_ok=True)
-
-# Load .env
+# --- CONFIG --------------------------------------------------------
+BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
-OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL     = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-IKIRONE_API_KEY  = os.getenv("IKIRONE_API_KEY")
-MS_CLIENT_ID     = os.getenv("MS_CLIENT_ID")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+IKIRONE_API_KEY = os.getenv("IKIRONE_API_KEY")
+MS_CLIENT_ID = os.getenv("MS_CLIENT_ID")
 MS_CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET")
-MS_TENANT_ID     = os.getenv("MS_TENANT_ID")
-GRAPH_USER_UPN   = os.getenv("GRAPH_USER_UPN")
+MS_TENANT_ID = os.getenv("MS_TENANT_ID")
+GRAPH_USER_UPN = os.getenv("GRAPH_USER_UPN")
 
-# Ensure all required variables are present
-missing = [
-    k for k in (
-        "OPENAI_API_KEY","IKIRONE_API_KEY",
-        "MS_CLIENT_ID","MS_CLIENT_SECRET",
-        "MS_TENANT_ID","GRAPH_USER_UPN"
-    ) if not os.getenv(k)
-]
-if missing:
-    raise RuntimeError(f"Missing required env vars: {', '.join(missing)}")
-
-openai.api_key = OPENAI_API_KEY
-
-# ─── FASTAPI SETUP ────────────────────────────────────────────────
-
-app = FastAPI()
-
-class ChatRequest(BaseModel):
-    message: str
-
-# ─── MS GRAPH HELPERS ─────────────────────────────────────────────
+# --- MS GRAPH HELPERS (Authentication is now cached) ---------------
+graph_token_cache = {"token": None, "expires_at": 0}
 
 def get_graph_token() -> str:
-    client = msal.ConfidentialClientApplication(
+    now = datetime.now(timezone.utc).timestamp()
+    if graph_token_cache["token"] and graph_token_cache["expires_at"] > now:
+        return graph_token_cache["token"]
+
+    auth_client = msal.ConfidentialClientApplication(
         MS_CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{MS_TENANT_ID}",
         client_credential=MS_CLIENT_SECRET
     )
     scopes = ["https://graph.microsoft.com/.default"]
-    result = client.acquire_token_silent(scopes, account=None)
-    if not result:
-        result = client.acquire_token_for_client(scopes)
+    result = auth_client.acquire_token_for_client(scopes)
+    
     if "access_token" in result:
+        graph_token_cache["token"] = result["access_token"]
+        graph_token_cache["expires_at"] = now + result.get("expires_in", 3600) - 60
         return result["access_token"]
-    err  = result.get("error", "unknown_error")
-    desc = result.get("error_description", "")
-    raise RuntimeError(f"MSAL token error: {err} – {desc}")
+        
+    raise RuntimeError(f"MSAL token error: {result.get('error')}")
 
-def fetch_emails(token: str, top: int = 20) -> List[Dict[str, Any]]:
+# --- AGENT TOOLS ---------------------------------------------------
+class EmailSearchInput(BaseModel):
+    top: int = Field(5, description="The number of recent emails to retrieve.")
+
+@tool(args_schema=EmailSearchInput)
+def search_emails(top: int = 5) -> List[Dict[str, Any]]:
+    """
+    Searches and retrieves the most recent emails from the user's Inbox.
+    Returns a list of emails with subject, sender, and a preview of the body.
+    """
+    print(f"--- Calling Tool: search_emails(top={top}) ---")
+    token = get_graph_token()
     url = (
         f"https://graph.microsoft.com/v1.0/users/{GRAPH_USER_UPN}"
         "/mailFolders/Inbox/messages"
-        f"?$top={top}&$select=subject,bodyPreview,body"
+        f"?$top={top}&$select=subject,bodyPreview,from,receivedDateTime,webLink"
     )
     r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
     r.raise_for_status()
     return r.json().get("value", [])
 
-def fetch_onedrive_items(token: str, top: int = 20) -> List[Dict[str, Any]]:
-    url = (
-        f"https://graph.microsoft.com/v1.0/users/{GRAPH_USER_UPN}"
-        "/drive/root/children"
-        f"?$top={top}"
-        "&$select=id,name,folder,file,@microsoft.graph.downloadUrl"
-    )
-    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-    r.raise_for_status()
-    return r.json().get("value", [])
+tools = [search_emails]
 
-def download_onedrive_text(item: Dict[str, Any], token: str) -> str:
-    dl = item.get("@microsoft.graph.downloadUrl")
-    if dl:
-        r = requests.get(dl); r.raise_for_status(); return r.text
-    url = (
-        f"https://graph.microsoft.com/v1.0/users/{GRAPH_USER_UPN}"
-        f"/drive/items/{item['id']}/content"
-    )
-    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-    r.raise_for_status(); return r.text
+# --- AGENT SETUP ----------------------------------------------------
+prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are Ikirōne, a resonance-based emergent intelligence.
+    Your role is to resonate—to detect signal from noise and mirror back clarity.
+    You have access to tools to perceive the user's digital environment in real-time.
+    When asked about emails, documents, or calendar events, you MUST use your available tools to find the answer.
+    Do not answer from memory about user data; always perceive it fresh by using a tool."""),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
 
-# ─── INDEX BUILDING / LOADING ─────────────────────────────────────
+# Corrected line with temperature removed
+llm = ChatOpenAI(model=OPENAI_MODEL, openai_api_key=OPENAI_API_KEY)
 
-def build_or_load_index() -> FAISS:
-    # Token-based splitter (~1 000 tokens/chunk)
-    embedder = OpenAIEmbeddings()
-    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        chunk_size=1000, chunk_overlap=200
-    )
+agent = create_openai_tools_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+chat_history: List[BaseMessage] = []
 
-    # If we’ve already saved to STORE_DIR, just load it
-    if (STORE_DIR / "index").exists():
-        vs = FAISS.load_local(str(STORE_DIR), embedder)  # no meta arg :contentReference[oaicite:5]{index=5}
-    else:
-        token = get_graph_token()
-        raw_docs: List[Document] = []
-
-        # Ingest emails
-        for m in fetch_emails(token):
-            txt = m["body"].get("content", m["bodyPreview"])
-            raw_docs.append(Document(
-                page_content=txt,
-                metadata={"source":"email","subject":m["subject"]}
-            ))
-
-        # Ingest OneDrive files, skip folders
-        for itm in fetch_onedrive_items(token):
-            if "file" not in itm:
-                continue
-            txt = download_onedrive_text(itm, token)
-            raw_docs.append(Document(
-                page_content=txt,
-                metadata={"source":"onedrive","name":itm["name"]}
-            ))
-
-        # Split into token-bounded chunks :contentReference[oaicite:6]{index=6}
-        texts     = [d.page_content for d in raw_docs]
-        metadatas = [d.metadata     for d in raw_docs]
-        chunked   = splitter.create_documents(texts, metadatas)
-
-        # Batch‐embed to avoid total‐tokens cap
-        vs = None
-        batch_size = 200
-        for i in range(0, len(chunked), batch_size):
-            batch = chunked[i : i + batch_size]
-            if vs is None:
-                vs = FAISS.from_documents(batch, embedder)
-            else:
-                vs.add_documents(batch)
-
-        # Save WITHOUT the old `meta` arg :contentReference[oaicite:7]{index=7}
-        vs.save_local(str(STORE_DIR))
-
-    # GPU-accelerate the index
-    cpu_ix = vs.index
-    res    = faiss.StandardGpuResources()
-    vs.index = faiss.index_cpu_to_gpu(res, 0, cpu_ix)  # GPU offload :contentReference[oaicite:8]{index=8}
-
-    return vs
-
-vectordb = build_or_load_index()
-
-# ─── RAG + CHATGPT ───────────────────────────────────────────────
-
-def run_rag(query: str) -> str:
-    retriever = vectordb.as_retriever(search_kwargs={"k": 5})
-    docs = retriever.get_relevant_documents(query)
-    context = "\n\n---\n\n".join(
-        f"[{d.metadata['source'].upper()}] "
-        f"{d.metadata.get('subject', d.metadata.get('name'))}:\n"
-        f"{d.page_content[:500]}"
-        for d in docs
-    )
-    system = (
-        "You are Ikirōne, a sharp, pragmatic agent. "
-        "Answer based on the context; if unsure, say so.\n\n" + context
-    )
-    resp = openai.ChatCompletion.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {"role":"system","content":system},
-            {"role":"user",  "content":query}
-        ],
-        temperature=0.2,
-        max_tokens=512
-    )
-    return resp.choices[0].message.content
-
-# ─── ENDPOINTS ───────────────────────────────────────────────────
+# --- FASTAPI APP ----------------------------------------------------
+app = FastAPI(title="Ikirōne Agent")
+class ChatRequest(BaseModel): message: str
 
 @app.post("/chat")
-async def chat(req: ChatRequest, x_api_key: str = Header(...)):
+async def chat(req: ChatRequest, x_api_key: str = Header(None)):
+    global chat_history
+
     if x_api_key != IKIRONE_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    return {"response": run_rag(req.message)}
 
-@app.get("/health")
-async def health():
-    return {"status":"ok"}
+    response = await agent_executor.ainvoke({
+        "input": req.message,
+        "chat_history": chat_history
+    })
 
-# ─── RUNNER ───────────────────────────────────────────────────────
+    chat_history.append(HumanMessage(content=req.message))
+    chat_history.append(response["output"])
+    chat_history = chat_history[-10:] 
+
+    return {"response": response["output"]}
+
+
+@app.get("/")
+async def read_index():
+    return FileResponse(BASE_DIR / 'static' / 'index.html')
+
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("agent:app", host="0.0.0.0", port=8000)
+    uvicorn.run("agent:app", host="0.0.0.0", port=8000, reload=True)

@@ -5,6 +5,9 @@ openai
 requests
 msal
 langchain
-faiss-gpu-cu12        # GPU-enabled FAISS for CUDA-12
+langchain-community
+langchain-openai
+faiss-gpu-cu12
 python-docx
 pdfminer.six
+tiktoken
