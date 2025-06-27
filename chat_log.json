@@ -1,0 +1,86 @@
+[
+  {
+    "content": "I want to look at files on my onedrive",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "human",
+    "name": null,
+    "id": null,
+    "example": false
+  },
+  {
+    "content": "Here are the 10 most-recent OneDrive items in your \u201cDocuments\u201d folder.\nIf any interests you, just tell me the name (or the number) and what you\u2019d like to do next (preview, download, summarise, etc.).\n\n1. Voting Guide.docx\u2003(17 KB, modified 3 May 2025)\n2. Gemini 2.5 deep research analysis of Ikir\u014dne dreaming.docx\u2003(33 KB, 14 Apr 2025)\n3. NCAT Training Manual.docx\u2003(42 KB, 10 Apr 2025)\n4. Document.docx\u2003(18 KB, 3 Apr 2025)\n5. Notice of Appeal.pdf\u2003(92 KB, 22 Mar 2025)\n6. Notice of Appeal.docx\u2003(21 KB, 22 Mar 2025)\n7. Appeal.docx\u2003(21 KB, 22 Mar 2025; first created Jun 2018)\n8. Voice captures (folder, created 26 Jan 2025, 2 items)\n9. Nathan @ Work (OneNote notebook, 23 MB, updated 22 Jan 2025)\n10. Organ Family (OneNote notebook, 655 MB, updated 21 Jan 2025)\n\nLet me know which file or folder you\u2019d like to open or work with!",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "ai",
+    "name": null,
+    "id": null,
+    "example": false,
+    "tool_calls": [],
+    "invalid_tool_calls": [],
+    "usage_metadata": null
+  },
+  {
+    "content": "what are the 5 most recently worked on files?",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "human",
+    "name": null,
+    "id": null,
+    "example": false
+  },
+  {
+    "content": "Here are the five files you most recently edited or saved on OneDrive:  \n\n1. Voting Guide.docx\u2003\u2013 modified 3 May 2025  \n2. Gemini 2.5 deep research analysis of Ikir\u014dne dreaming.docx\u2003\u2013 modified 14 Apr 2025  \n3. NCAT Training Manual.docx\u2003\u2013 modified 10 Apr 2025  \n4. Document.docx\u2003\u2013 modified 3 Apr 2025  \n5. Notice of Appeal.pdf\u2003\u2013 modified 22 Mar 2025  \n\nLet me know if you\u2019d like to open, preview, download, summarise, or do anything else with any of these files.",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "ai",
+    "name": null,
+    "id": null,
+    "example": false,
+    "tool_calls": [],
+    "invalid_tool_calls": [],
+    "usage_metadata": null
+  },
+  {
+    "content": "Can you find my book Conquest of the Impossible?",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "human",
+    "name": null,
+    "id": null,
+    "example": false
+  },
+  {
+    "content": "I just checked the 50 most-recent items in your OneDrive and nothing named \u201cConquest of the Impossible\u201d (or anything with \u201cConquest\u201d in the title) showed up.\n\nIt\u2019s probably an older file or in a less-recently-modified folder. A couple of ways I can help next:\n\n\u2022 Look deeper: I can search a larger slice of your OneDrive or build a quick index of all your files and scan it for that title.  \n\u2022 Narrow the hunt: If you remember roughly what type of file it is (Word, PDF, EPUB, etc.) or the folder it lives in, tell me and I\u2019ll jump straight there.\n\nLet me know how you\u2019d like to proceed!",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "ai",
+    "name": null,
+    "id": null,
+    "example": false,
+    "tool_calls": [],
+    "invalid_tool_calls": [],
+    "usage_metadata": null
+  },
+  {
+    "content": "Let's build an index of my onedrive files",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "human",
+    "name": null,
+    "id": null,
+    "example": false
+  },
+  {
+    "content": "All set\u2014I just indexed 239 items from your OneDrive, so I can now search everything instantly.\n\nGo ahead and ask for any filename, keyword, author, or date range. For example:\n\u2022 \u201cFind \u2018Conquest of the Impossible\u2019 \u201d\n\u2022 \u201cShow every PDF created in 2022\u201d\n\u2022 \u201cSearch for files that mention \u2018Ikir\u014dne\u2019 inside the text\u201d\n\nWhat would you like to look for first?",
+    "additional_kwargs": {},
+    "response_metadata": {},
+    "type": "ai",
+    "name": null,
+    "id": null,
+    "example": false,
+    "tool_calls": [],
+    "invalid_tool_calls": [],
+    "usage_metadata": null
+  }
+]

@@ -11,3 +11,5 @@ faiss-gpu-cu12
 python-docx
 pdfminer.six
 tiktoken
+Pillow
+pillow-heif
