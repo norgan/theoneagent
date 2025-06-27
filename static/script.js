@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("chat-form");
     const input = document.getElementById("message-input");
     const chatBox = document.getElementById("chat-box");
-    const apiKey = "No35rg876an!andthisisasecurecode)(*&^%$#@"; // Replace with your actual IKIRONE_API_KEY from .env
+    const apiKey = "your-agent-secret"; // Ensure this is your actual IKIRONE_API_KEY from .env
 
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
             addMessage(data.response, "agent");
 
         } catch (error) {
-            addMessage(`Error: ${error.message}`, "agent");
+            addMessage(`**Error:** ${error.message}`, "agent");
         }
     });
 
@@ -39,10 +39,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const messageElement = document.createElement("div");
         messageElement.classList.add("message", `${sender}-message`);
         
-        const p = document.createElement("p");
-        p.textContent = text;
-        messageElement.appendChild(p);
+        const p = document.createElement("div"); // Use a div to better contain complex HTML
+        
+        if (sender === 'agent') {
+            // If the message is from the agent, parse it as Markdown
+            p.innerHTML = marked.parse(text);
+        } else {
+            // Otherwise, treat it as plain text
+            p.textContent = text;
+        }
 
+        messageElement.appendChild(p);
         chatBox.appendChild(messageElement);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
